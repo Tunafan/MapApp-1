@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Alert } from 'react-native';
+import { StyleSheet, View, Modal, Image, TouchableOpacity, Text, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage funktioner
@@ -8,11 +8,17 @@ import { firestore, storage } from './firebase';  // Importer Firestore og Stora
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
+  const [selectedMarker, setSelectedMarker] = useState(null); // For at vise billedet af den valgte markør
+  const [modalVisible, setModalVisible] = useState(false);    // Styrer synligheden af modalen
 
   // Håndter long-press for at tilføje en markør og vælge et billede
   const handleLongPress = async (event) => {
-    event.persist(); // Bevar event-objektet
-    const coordinate = event.nativeEvent.coordinate; // Hent GPS-lokationen
+    const coordinate = event.nativeEvent.coordinate;
+    if (!coordinate || !coordinate.latitude || !coordinate.longitude) {
+      console.error("Coordinate is null or undefined", coordinate);
+      Alert.alert("Fejl", "GPS-position kunne ikke hentes.");
+      return;
+    }
 
     // Vælg et billede fra Photos
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -77,6 +83,12 @@ export default function App() {
     fetchMarkers();
   }, []);
 
+  // Funktion til at håndtere markørtryk og åbne modalen
+  const handleMarkerPress = (marker) => {
+    setSelectedMarker(marker);
+    setModalVisible(true);
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -87,10 +99,37 @@ export default function App() {
           <Marker
             key={index}
             coordinate={marker.coordinate}
-            onPress={() => Alert.alert('Billede', marker.imageUrl)} // Midlertidig handling ved tryk
+            onPress={() => handleMarkerPress(marker)}
           />
         ))}
       </MapView>
+
+      {/* Modal til at vise billede */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          setModalVisible(!modalVisible);
+        }}
+      >
+        <View style={styles.modalView}>
+          {selectedMarker && (
+            <>
+              <Image
+                source={{ uri: selectedMarker.imageUrl }}
+                style={styles.image}
+              />
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setModalVisible(!modalVisible)}
+              >
+                <Text style={styles.textStyle}>Luk</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -102,5 +141,27 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: '100%',
+  },
+  modalView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  image: {
+    width: 300,
+    height: 300,
+    borderRadius: 10,
+  },
+  closeButton: {
+    backgroundColor: '#2196F3',
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 20,
+  },
+  textStyle: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
