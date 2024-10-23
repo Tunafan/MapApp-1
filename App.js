@@ -26,8 +26,9 @@ export default function App() {
       });
       setMarkers(fetchedMarkers);
     } catch (error) {
-      console.error("Fejl ved hentning af markers: ", error);
+      console.error("Fejl ved hentning af markerss: ", error);
     }
+
   };
 
   const handleLongPress = async (event) => {
