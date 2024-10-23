@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage funktioner
-import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore'; // Firestore funktioner
-import app from './firebase'; // Firebase initialisering
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage funktioner
+import { collection, addDoc, getDocs } from 'firebase/firestore'; // Firestore funktioner
+import { firestore, storage } from './firebase';  // Importer Firestore og Storage fra firebase.js
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
-  const storage = getStorage(app);
-  const firestore = getFirestore(app);
 
   // Håndter long-press for at tilføje en markør og vælge et billede
   const handleLongPress = async (event) => {
