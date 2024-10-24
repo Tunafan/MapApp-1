@@ -1,82 +1,91 @@
-// App.js
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Alert, Image, Modal, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, Modal, Image, TouchableOpacity, Text, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
-import { db, storage } from './firebase';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage funktioner
+import { collection, addDoc, getDocs } from 'firebase/firestore'; // Firestore funktioner
+import { firestore, storage } from './firebase';  // Importer Firestore og Storage fra firebase.js
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState(null); // For at vise billedet af den valgte markør
+  const [modalVisible, setModalVisible] = useState(false);    // Styrer synligheden af modalen
 
-  // Hent alle markers fra Firestore ved komponentens mounting
-  useEffect(() => {
-    fetchMarkers();
-  }, []);
-
-  const fetchMarkers = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "markers"));
-      const fetchedMarkers = [];
-      querySnapshot.forEach((doc) => {
-        fetchedMarkers.push({ id: doc.id, ...doc.data() });
-      });
-      setMarkers(fetchedMarkers);
-    } catch (error) {
-      console.error("Fejl ved hentning af markerss: ", error);
-    }
-
-  };
-
+  // Håndter long-press for at tilføje en markør og vælge et billede
   const handleLongPress = async (event) => {
-    const { coordinate } = event.nativeEvent;
-
-    // Bed om tilladelse til at få adgang til billeder
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permissionResult.granted === false) {
-      Alert.alert("Tilladelse krævet", "Du skal give tilladelse til at vælge billeder.");
+    const coordinate = event.nativeEvent.coordinate;
+    if (!coordinate || !coordinate.latitude || !coordinate.longitude) {
+      console.error("Coordinate is null or undefined", coordinate);
+      Alert.alert("Fejl", "GPS-position kunne ikke hentes.");
       return;
     }
 
-    // Åbn billedvælgeren
-    let pickerResult = await ImagePicker.launchImageLibraryAsync({
+    // Vælg et billede fra Photos
+    let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
+      aspect: [4, 3],
       quality: 1,
     });
 
-    if (!pickerResult.cancelled) {
-      // Upload billede til Firebase Storage
-      const response = await fetch(pickerResult.uri);
-      const blob = await response.blob();
-      const filename = pickerResult.uri.substring(pickerResult.uri.lastIndexOf('/') + 1);
-      const storageRef = ref(storage, `images/${filename}`);
+    if (!result.canceled) {
+      const { uri } = result.assets[0]; // Få adgang til billedets URI
 
+      // Upload billedet til Firebase Storage
       try {
+        const imageName = `images/${Date.now()}.jpg`;
+        const storageRef = ref(storage, imageName);
+
+        // Hent billedets blob-data
+        const response = await fetch(uri);
+        const blob = await response.blob();
+
+        // Upload billedet
         await uploadBytes(storageRef, blob);
         const downloadURL = await getDownloadURL(storageRef);
 
-        // Gem marker i Firestore
-        const docRef = await addDoc(collection(db, "markers"), {
-          latitude: coordinate.latitude,
-          longitude: coordinate.longitude,
-          imageURL: downloadURL,
+        // Gem GPS-lokation og billedets URL i Firestore
+        await addDoc(collection(firestore, 'markers'), {
+          coordinate,
+          imageUrl: downloadURL,
         });
 
-        // Opdater markers state
-        setMarkers([...markers, { id: docRef.id, latitude: coordinate.latitude, longitude: coordinate.longitude, imageURL: downloadURL }]);
+        // Tilføj markøren til state
+        const newMarker = {
+          coordinate,
+          imageUrl: downloadURL,
+        };
+        setMarkers([...markers, newMarker]);
+
+        Alert.alert('Succes', 'Billedet blev uploadet, og markøren blev tilføjet!');
       } catch (error) {
-        console.error("Fejl ved upload: ", error);
+        console.error('Fejl ved upload:', error);
+        Alert.alert('Fejl', 'Kunne ikke uploade billedet.');
       }
     }
   };
 
+  // Hent marker-data fra Firestore ved app start
+  useEffect(() => {
+    const fetchMarkers = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(firestore, 'markers'));
+        const fetchedMarkers = [];
+        querySnapshot.forEach((doc) => {
+          fetchedMarkers.push(doc.data());
+        });
+        setMarkers(fetchedMarkers);
+      } catch (error) {
+        console.error('Fejl ved hentning af markører:', error);
+      }
+    };
+
+    fetchMarkers();
+  }, []);
+
+  // Funktion til at håndtere markørtryk og åbne modalen
   const handleMarkerPress = (marker) => {
-    setSelectedImage(marker.imageURL);
+    setSelectedMarker(marker);
     setModalVisible(true);
   };
 
@@ -85,23 +94,17 @@ export default function App() {
       <MapView
         style={styles.map}
         onLongPress={handleLongPress}
-        initialRegion={{
-          latitude: 55.6761, // For eksempel København
-          longitude: 12.5683,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        }}
       >
-        {markers.map((marker) => (
+        {markers.map((marker, index) => (
           <Marker
-            key={marker.id}
-            coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+            key={index}
+            coordinate={marker.coordinate}
             onPress={() => handleMarkerPress(marker)}
           />
         ))}
       </MapView>
 
-      {/* Modal til at vise billedet */}
+      {/* Modal til at vise billede */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -111,15 +114,20 @@ export default function App() {
         }}
       >
         <View style={styles.modalView}>
-          {selectedImage && (
-            <Image source={{ uri: selectedImage }} style={styles.image} />
+          {selectedMarker && (
+            <>
+              <Image
+                source={{ uri: selectedMarker.imageUrl }}
+                style={styles.image}
+              />
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setModalVisible(!modalVisible)}
+              >
+                <Text style={styles.textStyle}>Luk</Text>
+              </TouchableOpacity>
+            </>
           )}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setModalVisible(!modalVisible)}
-          >
-            <Text style={styles.textStyle}>Luk</Text>
-          </TouchableOpacity>
         </View>
       </Modal>
     </View>
@@ -135,35 +143,25 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   modalView: {
-    margin: 20,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 35,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    top: '20%',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   image: {
     width: 300,
     height: 300,
-    marginBottom: 15,
+    borderRadius: 10,
   },
   closeButton: {
-    backgroundColor: "#2196F3",
-    borderRadius: 10,
+    backgroundColor: '#2196F3',
     padding: 10,
-    elevation: 2,
+    borderRadius: 5,
+    marginTop: 20,
   },
   textStyle: {
-    color: "white",
-    fontWeight: "bold",
-    textAlign: "center"
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
