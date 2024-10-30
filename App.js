@@ -1,15 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Modal, Image, TouchableOpacity, Text, Alert } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import * as ImagePicker from 'expo-image-picker';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Firebase Storage funktioner
-import { collection, addDoc, getDocs } from 'firebase/firestore'; // Firestore funktioner
-import { firestore, storage } from './firebase';  // Importer Firestore og Storage fra firebase.js
+import React, { useState, useEffect } from "react";
+import {
+  StyleSheet,
+  View,
+  Modal,
+  Image,
+  TouchableOpacity,
+  Text,
+  Alert,
+  Button,
+} from "react-native";
+import MapView, { Marker } from "react-native-maps";
+import * as ImagePicker from "expo-image-picker";
+
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Firebase Storage funktioner
+import { collection, addDoc, getDocs } from "firebase/firestore"; // Firestore funktioner
+import { firestore, storage } from "./firebase"; // Importer Firestore og Storage fra firebase.js
+import Chat from "./chat.js";
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
   const [selectedMarker, setSelectedMarker] = useState(null); // For at vise billedet af den valgte markør
-  const [modalVisible, setModalVisible] = useState(false);    // Styrer synligheden af modalen
+  const [modalVisible, setModalVisible] = useState(false); // Styrer synligheden af modalen
+  const [chat, setShowChat] = useState(false);
 
   // Håndter long-press for at tilføje en markør og vælge et billede
   const handleLongPress = async (event) => {
@@ -45,7 +57,7 @@ export default function App() {
         const downloadURL = await getDownloadURL(storageRef);
 
         // Gem GPS-lokation og billedets URL i Firestore
-        await addDoc(collection(firestore, 'markers'), {
+        await addDoc(collection(firestore, "markers"), {
           coordinate,
           imageUrl: downloadURL,
         });
@@ -57,10 +69,13 @@ export default function App() {
         };
         setMarkers([...markers, newMarker]);
 
-        Alert.alert('Succes', 'Billedet blev uploadet, og markøren blev tilføjet!');
+        Alert.alert(
+          "Succes",
+          "Billedet blev uploadet, og markøren blev tilføjet!"
+        );
       } catch (error) {
-        console.error('Fejl ved upload:', error);
-        Alert.alert('Fejl', 'Kunne ikke uploade billedet.');
+        console.error("Fejl ved upload:", error);
+        Alert.alert("Fejl", "Kunne ikke uploade billedet.");
       }
     }
   };
@@ -69,14 +84,14 @@ export default function App() {
   useEffect(() => {
     const fetchMarkers = async () => {
       try {
-        const querySnapshot = await getDocs(collection(firestore, 'markers'));
+        const querySnapshot = await getDocs(collection(firestore, "markers"));
         const fetchedMarkers = [];
         querySnapshot.forEach((doc) => {
           fetchedMarkers.push(doc.data());
         });
         setMarkers(fetchedMarkers);
       } catch (error) {
-        console.error('Fejl ved hentning af markører:', error);
+        console.error("Fejl ved hentning af markører:", error);
       }
     };
 
@@ -91,10 +106,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <MapView
-        style={styles.map}
-        onLongPress={handleLongPress}
-      >
+      <MapView style={styles.map} onLongPress={handleLongPress}>
         {markers.map((marker, index) => (
           <Marker
             key={index}
@@ -103,6 +115,12 @@ export default function App() {
           />
         ))}
       </MapView>
+      <Button title="Toggle Chat" onPress={() => setShowChat(!showChat)} />
+      {showChat && (
+        <View style={styles.chatContainer}>
+          <Chat />
+        </View>
+      )}
 
       {/* Modal til at vise billede */}
       <Modal
@@ -139,14 +157,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   modalView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   image: {
     width: 300,
@@ -154,14 +172,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   closeButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
     padding: 10,
     borderRadius: 5,
     marginTop: 20,
   },
   textStyle: {
-    color: 'white',
-    fontWeight: 'bold',
-    textAlign: 'center',
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  chatContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "40%",
+    backgroundColor: "white",
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
   },
 });
