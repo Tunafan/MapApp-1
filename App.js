@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -12,27 +12,52 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import * as ImagePicker from "expo-image-picker";
 
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Firebase Storage funktioner
-import { collection, addDoc, getDocs } from "firebase/firestore"; // Firestore funktioner
-import { firestore, storage } from "./firebase"; // Importer Firestore og Storage fra firebase.js
-import Chat from "./chat";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Firebase Storage functions
+import { collection, addDoc, getDocs } from "firebase/firestore"; // Firestore functions
+import { firestore, storage } from "./firebase"; // Import Firestore and Storage from firebase.js
+import { GiftedChat } from "react-native-gifted-chat";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
-  const [selectedMarker, setSelectedMarker] = useState(null); // For at vise billedet af den valgte markør
-  const [modalVisible, setModalVisible] = useState(false); // Styrer synligheden af modalen
-  const [chat, setShowChat] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState(null); // For displaying the selected marker's image
+  const [modalVisible, setModalVisible] = useState(false); // Controls the modal's visibility
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState([]);
 
-  // Håndter long-press for at tilføje en markør og vælge et billede
+  // Initial chat message setup
+  useEffect(() => {
+    setMessages([
+      {
+        _id: 1,
+        text: "Hello from your v good friend.",
+        createdAt: new Date(),
+        user: {
+          _id: 2,
+          name: "Din ven",
+          avatar: "https://placeimg.com/140/140/any",
+        },
+      },
+    ]);
+  }, []);
+
+  // Send message handler
+  const onSend = useCallback((newMessages = []) => {
+    setMessages((previousMessages) =>
+      GiftedChat.append(previousMessages, newMessages)
+    );
+  }, []);
+
+  // Handle long-press to add a marker and select an image
   const handleLongPress = async (event) => {
     const coordinate = event.nativeEvent.coordinate;
     if (!coordinate || !coordinate.latitude || !coordinate.longitude) {
       console.error("Coordinate is null or undefined", coordinate);
-      Alert.alert("Fejl", "GPS-position kunne ikke hentes.");
+      Alert.alert("Error", "Unable to retrieve GPS location.");
       return;
     }
 
-    // Vælg et billede fra Photos
+    // Select an image from Photos
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -41,46 +66,43 @@ export default function App() {
     });
 
     if (!result.canceled) {
-      const { uri } = result.assets[0]; // Få adgang til billedets URI
+      const { uri } = result.assets[0]; // Access the image URI
 
-      // Upload billedet til Firebase Storage
+      // Upload the image to Firebase Storage
       try {
         const imageName = `images/${Date.now()}.jpg`;
         const storageRef = ref(storage, imageName);
 
-        // Hent billedets blob-data
+        // Get the image's blob data
         const response = await fetch(uri);
         const blob = await response.blob();
 
-        // Upload billedet
+        // Upload the image
         await uploadBytes(storageRef, blob);
         const downloadURL = await getDownloadURL(storageRef);
 
-        // Gem GPS-lokation og billedets URL i Firestore
+        // Save GPS location and image URL in Firestore
         await addDoc(collection(firestore, "markers"), {
           coordinate,
           imageUrl: downloadURL,
         });
 
-        // Tilføj markøren til state
+        // Add the marker to state
         const newMarker = {
           coordinate,
           imageUrl: downloadURL,
         };
         setMarkers([...markers, newMarker]);
 
-        Alert.alert(
-          "Succes",
-          "Billedet blev uploadet, og markøren blev tilføjet!"
-        );
+        Alert.alert("Success", "The image was uploaded and marker added!");
       } catch (error) {
-        console.error("Fejl ved upload:", error);
-        Alert.alert("Fejl", "Kunne ikke uploade billedet.");
+        console.error("Upload error:", error);
+        Alert.alert("Error", "Unable to upload the image.");
       }
     }
   };
 
-  // Hent marker-data fra Firestore ved app start
+  // Fetch marker data from Firestore on app start
   useEffect(() => {
     const fetchMarkers = async () => {
       try {
@@ -91,64 +113,79 @@ export default function App() {
         });
         setMarkers(fetchedMarkers);
       } catch (error) {
-        console.error("Fejl ved hentning af markører:", error);
+        console.error("Error fetching markers:", error);
       }
     };
 
     fetchMarkers();
   }, []);
 
-  // Funktion til at håndtere markørtryk og åbne modalen
+  // Function to handle marker press and open the modal
   const handleMarkerPress = (marker) => {
     setSelectedMarker(marker);
     setModalVisible(true);
   };
 
   return (
-    <View style={styles.container}>
-      <MapView style={styles.map} onLongPress={handleLongPress}>
-        {markers.map((marker, index) => (
-          <Marker
-            key={index}
-            coordinate={marker.coordinate}
-            onPress={() => handleMarkerPress(marker)}
-          />
-        ))}
-      </MapView>
-      <Button title="Toggle Chat" onPress={() => setShowChat(!showChat)} />
-      {showChat && (
-        <View style={styles.chatContainer}>
-          <Chat />
-        </View>
-      )}
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <MapView style={styles.map} onLongPress={handleLongPress}>
+          {markers.map((marker, index) => (
+            <Marker
+              key={index}
+              coordinate={marker.coordinate}
+              onPress={() => handleMarkerPress(marker)}
+            />
+          ))}
+        </MapView>
 
-      {/* Modal til at vise billede */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(!modalVisible);
-        }}
-      >
-        <View style={styles.modalView}>
-          {selectedMarker && (
-            <>
-              <Image
-                source={{ uri: selectedMarker.imageUrl }}
-                style={styles.image}
-              />
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setModalVisible(!modalVisible)}
-              >
-                <Text style={styles.textStyle}>Luk</Text>
-              </TouchableOpacity>
-            </>
-          )}
+        <View style={styles.buttonContainer}>
+          <Button title="Toggle Chat" onPress={() => setShowChat(!showChat)} />
         </View>
-      </Modal>
-    </View>
+
+        {showChat && (
+          <View style={styles.chatContainer}>
+            <GiftedChat
+              messages={messages}
+              showAvatarForEveryMessage={true}
+              onSend={(messages) => onSend(messages)}
+              user={{
+                _id: 1,
+                name: "Guest User",
+                avatar: "https://placeimg.com/140/140/any",
+              }}
+            />
+          </View>
+        )}
+
+        {/* Modal for displaying selected marker's image */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={() => {
+            setModalVisible(!modalVisible);
+          }}
+        >
+          <View style={styles.modalView}>
+            {selectedMarker && (
+              <>
+                <Image
+                  source={{ uri: selectedMarker.imageUrl }}
+                  style={styles.image}
+                />
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setModalVisible(!modalVisible)}
+                >
+                  <Text style={styles.textStyle}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Modal>
+      </View>
+    </SafeAreaProvider>
   );
 }
 
@@ -159,6 +196,13 @@ const styles = StyleSheet.create({
   map: {
     width: "100%",
     height: "100%",
+    zIndex: 0, // Ensure map is below other components
+  },
+  buttonContainer: {
+    position: "absolute",
+    top: 10,
+    alignSelf: "center",
+    zIndex: 1, // Position above the map
   },
   modalView: {
     flex: 1,
@@ -191,5 +235,6 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopLeftRadius: 15,
     borderTopRightRadius: 15,
+    zIndex: 2, // Ensure chat appears above the map
   },
 });
