@@ -15,7 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // Firebase Storage funktioner
 import { collection, addDoc, getDocs } from "firebase/firestore"; // Firestore funktioner
 import { firestore, storage } from "./firebase"; // Importer Firestore og Storage fra firebase.js
-import Chat from "./chat.js";
+import Chat from "./chat";
 
 export default function App() {
   const [markers, setMarkers] = useState([]);
