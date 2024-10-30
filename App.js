@@ -11,7 +11,7 @@ export default function App() {
   const [selectedMarker, setSelectedMarker] = useState(null); // For at vise billedet af den valgte markør
   const [modalVisible, setModalVisible] = useState(false);    // Styrer synligheden af modalen
 
-  // Håndter long-press for at tilføje en markør og vælge et billede
+  // Long-press for at tilføje en markør + vælge billede
   const handleLongPress = async (event) => {
     const coordinate = event.nativeEvent.coordinate;
     if (!coordinate || !coordinate.latitude || !coordinate.longitude) {
@@ -20,7 +20,7 @@ export default function App() {
       return;
     }
 
-    // Vælg et billede fra Photos
+    // Vælg billede fra Photos
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -29,9 +29,9 @@ export default function App() {
     });
 
     if (!result.canceled) {
-      const { uri } = result.assets[0]; // Få adgang til billedets URI
+      const { uri } = result.assets[0]; // Adgang til billedets URI
 
-      // Upload billedet til Firebase Storage
+      // Upload billede til Firebase Storage
       try {
         const imageName = `images/${Date.now()}.jpg`;
         const storageRef = ref(storage, imageName);
@@ -50,7 +50,7 @@ export default function App() {
           imageUrl: downloadURL,
         });
 
-        // Tilføj markøren til state
+        // Tilføj markør til state
         const newMarker = {
           coordinate,
           imageUrl: downloadURL,
