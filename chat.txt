@@ -1,0 +1,51 @@
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState([]);
+
+  // Initial chat message setup
+  useEffect(() => {
+    setMessages([
+      {
+        _id: 1,
+        text: "Hello from your v good friend.",
+        createdAt: new Date(),
+        user: {
+          _id: 2,
+          name: "Din ven",
+          avatar: "https://placeimg.com/140/140/any",
+        },
+      },
+    ]);
+  }, []);
+
+  // Send message handler
+  const onSend = useCallback((newMessages = []) => {
+    setMessages((previousMessages) =>
+      GiftedChat.append(previousMessages, newMessages)
+    );
+  }, []);
+
+
+  OG
+
+
+return {
+ <View style={styles.buttonContainer}>
+          <Button title="Toggle Chat" onPress={() => setShowChat(!showChat)} />
+        </View>
+
+        {showChat && (
+          <View style={styles.chatContainer}>
+            <GiftedChat
+              messages={messages}
+              showAvatarForEveryMessage={true}
+              onSend={(messages) => onSend(messages)}
+              user={{
+                _id: 1,
+                name: "Guest User",
+                avatar: "https://placeimg.com/140/140/any",
+              }}
+            />
+          </View>
+        )}
+
+}
